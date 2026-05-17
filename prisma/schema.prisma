@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── NextAuth ────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Campos extras GitHealth
+  githubId    String?
+  githubLogin String?
+  lastSyncAt  DateTime?
+
+  accounts       Account[]
+  sessions       Session[]
+  commits        Commit[]
+  pullRequests   PullRequest[]
+  reviews        PRReview[]
+  snapshots      MetricSnapshot[]
+  syncJobs       SyncJob[]
+  userRepository UserRepository[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── GitHealth ───────────────────────────────────────────────────────────────
+
+model Repository {
+  id            String  @id @default(cuid())
+  githubId      Int     @unique
+  fullName      String  @unique
+  private       Boolean @default(false)
+  defaultBranch String  @default("main")
+  ownerLogin    String
+
+  commits      Commit[]
+  pullRequests PullRequest[]
+  snapshots    MetricSnapshot[]
+  users        UserRepository[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserRepository {
+  id           String  @id @default(cuid())
+  userId       String
+  repositoryId String
+  active       Boolean  @default(true)
+  selectedAt   DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, repositoryId])
+}
+
+model Commit {
+  id           String   @id @default(cuid())
+  sha          String
+  repoId       String
+  authorUserId String?
+  authorLogin  String?
+  message      String
+  additions    Int      @default(0)
+  deletions    Int      @default(0)
+  changedFiles Int      @default(0)
+  committedAt  DateTime
+  isBugFix     Boolean  @default(false)
+
+  repo   Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  author User?      @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([sha, repoId])
+  @@index([authorUserId, committedAt])
+}
+
+model PullRequest {
+  id           String    @id @default(cuid())
+  githubId     Int
+  number       Int
+  repoId       String
+  authorUserId String?
+  authorLogin  String?
+  title        String
+  state        String
+  additions    Int       @default(0)
+  deletions    Int       @default(0)
+  isBugFix     Boolean   @default(false)
+  createdAt    DateTime
+  updatedAt    DateTime
+  mergedAt     DateTime?
+  closedAt     DateTime?
+  cycleTimeMs  BigInt?
+  leadTimeMs   BigInt?
+  timeInReviewMs BigInt?
+
+  repo    Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  author  User?      @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  reviews PRReview[]
+
+  @@unique([githubId, repoId])
+  @@index([repoId, mergedAt])
+}
+
+model PRReview {
+  id             String   @id
+  prId           String
+  reviewerUserId String?
+  reviewerLogin  String?
+  state          String
+  submittedAt    DateTime
+
+  pullRequest PullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  reviewer    User?       @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
+}
+
+model Issue {
+  id             String    @id @default(cuid())
+  githubNodeId   String?   @unique
+  number         Int
+  repoId         String
+  authorLogin    String?
+  assigneeLogin  String?
+  title          String
+  state          String
+  isBug          Boolean   @default(false)
+  openedAt       DateTime
+  closedAt       DateTime?
+  resolutionTimeMs BigInt?
+  reopened       Boolean   @default(false)
+
+  @@index([repoId])
+}
+
+enum Granularity {
+  daily
+  weekly
+  monthly
+}
+
+model MetricSnapshot {
+  id          String      @id @default(cuid())
+  userId      String
+  repoId      String?
+  periodStart DateTime
+  periodEnd   DateTime
+  granularity Granularity
+
+  wolterScore Float?
+
+  // Componentes do Score
+  componentC Float?
+  componentP Float?
+  componentQ Float?
+  componentR Float?
+  componentB Float?
+
+  // Contagens brutas
+  commitCount   Int @default(0)
+  activeDays    Int @default(0)
+  prOpenedCount Int @default(0)
+  prMergedCount Int @default(0)
+
+  // Médias calculadas
+  acceptanceRate     Float?
+  avgCycleTimeHours  Float?
+  avgLeadTimeHours   Float?
+  avgReviewTimeHours Float?
+
+  // Bug fix
+  bugFixTimeHours   Float?
+  totalDevTimeHours Float?
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository Repository? @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, repoId, periodStart, granularity])
+  @@index([userId, periodStart])
+}
+
+enum SyncJobType {
+  initial
+  incremental
+  snapshot
+}
+
+enum SyncJobStatus {
+  pending
+  running
+  done
+  failed
+}
+
+model SyncJob {
+  id             String        @id @default(cuid())
+  userId         String
+  type           SyncJobType
+  status         SyncJobStatus @default(pending)
+  startedAt      DateTime      @default(now())
+  finishedAt     DateTime?
+  error          String?
+  itemsProcessed Int           @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
