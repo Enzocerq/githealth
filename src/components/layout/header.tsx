@@ -1,8 +1,8 @@
 import type { User } from "@prisma/client";
-import { RefreshCw } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { MobileNav } from "./mobile-nav";
+import { ThemeToggle } from "./theme-toggle";
 
 interface HeaderProps {
   user: Pick<User, "name" | "email" | "image" | "lastSyncAt">;
@@ -31,6 +31,9 @@ export function Header({ user, syncButton }: HeaderProps) {
 
       {/* Sync button slot */}
       {syncButton}
+
+      {/* Theme toggle */}
+      <ThemeToggle />
 
       {/* Avatar */}
       <Avatar src={user.image} alt={user.name ?? "Usuário"} fallback={initials} />
