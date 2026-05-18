@@ -1,8 +1,8 @@
 import type { User } from "@prisma/client";
 
-import { Avatar } from "@/components/ui/avatar";
 import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
+import { UserMenu } from "./user-menu";
 
 interface HeaderProps {
   user: Pick<User, "name" | "email" | "image" | "lastSyncAt">;
@@ -10,9 +10,19 @@ interface HeaderProps {
 }
 
 export function Header({ user, syncButton }: HeaderProps) {
-  const initials = user.name?.split(" ").map((n) => n[0]).join("") ?? user.email?.[0] ?? "?";
+  const initials =
+    user.name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("") ??
+    user.email?.[0] ??
+    "?";
+
   const lastSync = user.lastSyncAt
-    ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(user.lastSyncAt)
+    ? new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(user.lastSyncAt)
     : null;
 
   return (
@@ -35,8 +45,13 @@ export function Header({ user, syncButton }: HeaderProps) {
       {/* Theme toggle */}
       <ThemeToggle />
 
-      {/* Avatar */}
-      <Avatar src={user.image} alt={user.name ?? "Usuário"} fallback={initials} />
+      {/* User menu */}
+      <UserMenu
+        name={user.name}
+        email={user.email}
+        image={user.image}
+        initials={initials}
+      />
     </header>
   );
 }
