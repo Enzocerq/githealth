@@ -50,7 +50,7 @@ export default function LandingPage() {
               Conectar com GitHub
             </Link>
             <Link
-              href="/preview"
+              href="/preview/dashboard"
               className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
             >
               Ver demo
